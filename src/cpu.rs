@@ -153,6 +153,21 @@ impl CPU {
         self.update_zero_and_negative_flags(self.register_x);
     }
 
+    fn tay(&mut self) {
+        self.register_y = self.register_a;
+        self.update_zero_and_negative_flags(self.register_y);
+    }
+
+    fn txa(&mut self) {
+        self.register_a = self.register_x;
+        self.update_zero_and_negative_flags(self.register_a);
+    }
+
+    fn tya(&mut self) {
+        self.register_a = self.register_y;
+        self.update_zero_and_negative_flags(self.register_a);
+    }
+
     fn inx(&mut self) {
         self.register_x = self.register_x.wrapping_add(1);
         self.update_zero_and_negative_flags(self.register_x);
@@ -195,6 +210,15 @@ impl CPU {
 
                 // TAX
                 0xAA => self.tax(),
+
+                // TAY
+                0xA8 => self.tay(),
+
+                // TXA
+                0x8A => self.txa(),
+
+                // TYA
+                0x98 => self.tya(),
 
                 // INX
                 0xe8 => self.inx(),
