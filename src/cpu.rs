@@ -1,6 +1,30 @@
 use std::collections::HashMap;
 use crate::opcodes;
 
+bitflags! {
+    /// # Status Register (P) https://wiki.nesdev.org/w/index.php/Status_flags
+    ///
+    /// 7 6 5 4 3 2 1 0
+    /// N V _ B D I Z C
+    /// | |   | | | | +--- Carry Flag
+    /// | |   | | | +----- Zero Flag
+    /// | |   | | +------- Interrupt Disable
+    /// | |   | +--------- Decimal Mode (unused)
+    /// | |   +----------- Break Command
+    /// | +--------------- Overflow Flag
+    /// +----------------- Negative Flag
+    pub struct CpuFlags: u8 {
+        const CARRY             = 0b00000001;
+        const ZERO              = 0b00000010;
+        const INTERRUPT_DISABLE = 0b00000100;
+        const DECIMAL_MODE      = 0b00001000;
+        const BREAK             = 0b00010000;
+        const BREAK2            = 0b00100000;
+        const OVERFLOW          = 0b01000000;
+        const NEGATIVE          = 0b10000000;
+    }
+}
+
 #[derive(Debug)]
 #[allow(non_camel_case_types)]
 pub enum AddressingMode {
@@ -20,7 +44,7 @@ pub struct CPU {
     pub register_a: u8,
     pub register_x: u8,
     pub register_y: u8,
-    pub status: u8,
+    pub status: CpuFlags,
     pub stack_ptr: u8,
     pub program_counter: u16,
     memory: [u8; 0xFFFF]
@@ -32,7 +56,7 @@ impl CPU {
             register_a: 0,
             register_x: 0,
             register_y: 0,
-            status: 0,
+            status: CpuFlags::from_bits_truncate(0b100100),
             stack_ptr: 0,
             program_counter: 0,
             memory: [0; 0xFFFF],
