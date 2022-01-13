@@ -53,7 +53,7 @@ pub struct CPU {
 trait Mem {
     fn mem_read(&self, addr: u16) -> u8;
 
-    fn mem_write(&mut self, addr: u16, data: u8);
+    fn mem_write(&mut self, addr: u16, value: u8);
 
     fn mem_read_u16(&self, pos: u16) -> u16 {
         let lo = self.mem_read(pos) as u16;
@@ -61,9 +61,9 @@ trait Mem {
         (hi << 8) | (lo as u16)
     }
 
-    fn mem_write_u16(&mut self, pos: u16, data: u16) {
-        let hi = (data >> 8) as u8;
-        let lo = (data & 0xff) as u8;
+    fn mem_write_u16(&mut self, pos: u16, value: u16) {
+        let hi = (value >> 8) as u8;
+        let lo = (value & 0xff) as u8;
         self.mem_write(pos, lo);
         self.mem_write(pos + 1, hi);
     }
@@ -74,8 +74,8 @@ impl Mem for CPU {
         self.memory[addr as usize]
     }
 
-    fn mem_write(&mut self, addr: u16, data: u8) {
-        self.memory[addr as usize] = data;
+    fn mem_write(&mut self, addr: u16, value: u8) {
+        self.memory[addr as usize] = value;
     }
 }
 
@@ -176,16 +176,46 @@ impl CPU {
         (hi << 8) | (lo as u16)
     }
 
-    fn mem_write_u16(&mut self, pos: u16, data: u16) {
-        let hi = (data >> 8) as u8;
-        let lo = (data & 0xff) as u8;
+    fn mem_write_u16(&mut self, pos: u16, value: u16) {
+        let hi = (value >> 8) as u8;
+        let lo = (value & 0xff) as u8;
         self.mem_write(pos, lo);
         self.mem_write(pos + 1, hi);
+    }
+
+    fn clc(&mut self) {
+        self.status.remove(CpuFlags::CARRY)
+    }
+
+    fn cld(&mut self) {
+        self.status.remove(CpuFlags::DECIMAL_MODE)
+    }
+
+    fn cli(&mut self) {
+        self.status.remove(CpuFlags::INTERRUPT_DISABLE)
+    }
+
+    fn clv(&mut self) {
+        self.status.remove(CpuFlags::OVERFLOW)
+    }
+
+    fn inc(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        let mut value = self.mem_read(addr);
+
+        value = value.wrapping_add(1);
+        self.mem_write(addr, value);
+        self.update_zero_and_negative_flags(value);
     }
 
     fn inx(&mut self) {
         self.register_x = self.register_x.wrapping_add(1);
         self.update_zero_and_negative_flags(self.register_x);
+    }
+
+    fn iny(&mut self) {
+        self.register_y = self.register_y.wrapping_add(1);
+        self.update_zero_and_negative_flags(self.register_y);
     }
 
     fn lda(&mut self, mode: &AddressingMode) {
@@ -210,6 +240,18 @@ impl CPU {
 
         self.register_y = value;
         self.update_zero_and_negative_flags(self.register_y);
+    }
+
+    fn sec(&mut self) {
+        self.status.insert(CpuFlags::CARRY)
+    }
+
+    fn sed(&mut self) {
+        self.status.insert(CpuFlags::DECIMAL_MODE)
+    }
+
+    fn sei(&mut self) {
+        self.status.insert(CpuFlags::INTERRUPT_DISABLE)
     }
 
     fn sta(&mut self, mode: &AddressingMode) {
@@ -274,8 +316,28 @@ impl CPU {
                 // BRK
                 0x00 => return,
 
+                // CLC
+                0x18 => self.clc(),
+
+                // CLD
+                0xd8 => self.cld(),
+
+                // CLI
+                0x58 => self.cli(),
+
+                // CLV
+                0xb8 => self.clv(),
+
+                // INC
+                0xe6 | 0xf6 | 0xee | 0xfe => {
+                    self.inc(&opcode.mode);
+                }
+
                 // INX
                 0xe8 => self.inx(),
+
+                // INY
+                0xc8 => self.iny(),
 
                 // LDA
                 0xa9 | 0xa5 | 0xb5 | 0xad | 0xbd | 0xb9 | 0xa1 | 0xb1 => {
@@ -296,6 +358,15 @@ impl CPU {
                 0xea => {
                     // do nothing.
                 },
+
+                // SEC
+                0x38 => self.sec(),
+
+                // SED
+                0xf8 => self.sed(),
+
+                // SEI
+                0x78 => self.sei(),
 
                 // STA
                 0x85 | 0x95 | 0x8d | 0x9d | 0x99 | 0x81 | 0x91 => {
