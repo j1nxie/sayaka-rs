@@ -291,6 +291,11 @@ impl CPU {
                 0xa0 | 0xa4 | 0xb4 | 0xac | 0xbc => {
                     self.ldy(&opcode.mode);
                 }
+                
+                // NOP
+                0xea => {
+                    // do nothing.
+                },
 
                 // STA
                 0x85 | 0x95 | 0x8d | 0x9d | 0x99 | 0x81 | 0x91 => {
