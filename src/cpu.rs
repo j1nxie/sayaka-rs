@@ -166,9 +166,18 @@ impl CPU {
         self.update_zero_and_negative_flags(self.register_y);
     }
 
+    fn tsx(&mut self) {
+        self.register_x = self.stack_ptr;
+        self.update_zero_and_negative_flags(self.register_x);
+    }
+
     fn txa(&mut self) {
         self.register_a = self.register_x;
         self.update_zero_and_negative_flags(self.register_a);
+    }
+
+    fn txs(&mut self) {
+        self.stack_ptr = self.register_x;
     }
 
     fn tya(&mut self) {
@@ -223,8 +232,14 @@ impl CPU {
                 // TAY
                 0xA8 => self.tay(),
 
+                // TSX
+                0xBA => self.tsx(),
+
                 // TXA
                 0x8A => self.txa(),
+
+                // TXS
+                0x9A => self.txs(),
 
                 // TYA
                 0x98 => self.tya(),
