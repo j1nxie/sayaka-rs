@@ -1,3 +1,5 @@
+pub mod cpu;
+
 fn main() {
-    todo!()
+    println!("Hello, World!");
 }
