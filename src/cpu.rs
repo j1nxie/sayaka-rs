@@ -21,6 +21,7 @@ pub struct CPU {
     pub register_x: u8,
     pub register_y: u8,
     pub status: u8,
+    pub stack_ptr: u8,
     pub program_counter: u16,
     memory: [u8; 0xFFFF]
 }
@@ -32,6 +33,7 @@ impl CPU {
             register_x: 0,
             register_y: 0,
             status: 0,
+            stack_ptr: 0,
             program_counter: 0,
             memory: [0; 0xFFFF],
         }
@@ -107,6 +109,7 @@ impl CPU {
         self.register_x = 0;
         self.register_y = 0;
         self.status = 0;
+        self.stack_ptr = 0;
 
         self.program_counter = self.mem_read_u16(0xFFFC);
     }
