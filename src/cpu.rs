@@ -135,6 +135,11 @@ impl CPU {
         self.mem_write(pos + 1, hi);
     }
 
+    fn inx(&mut self) {
+        self.register_x = self.register_x.wrapping_add(1);
+        self.update_zero_and_negative_flags(self.register_x);
+    }
+
     fn lda(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
         let value = self.mem_read(addr);
@@ -168,11 +173,6 @@ impl CPU {
         self.update_zero_and_negative_flags(self.register_a);
     }
 
-    fn inx(&mut self) {
-        self.register_x = self.register_x.wrapping_add(1);
-        self.update_zero_and_negative_flags(self.register_x);
-    }
-
     fn update_zero_and_negative_flags(&mut self, result: u8) {
         if result == 0 {
             self.status = self.status | 0b0000_0010;
@@ -198,6 +198,12 @@ impl CPU {
                 .expect(&format!("opcode {:x} is not recognized", code));
 
             match code {
+                // BRK
+                0x00 => return,
+
+                // INX
+                0xe8 => self.inx(),
+
                 // LDA
                 0xa9 | 0xa5 | 0xb5 | 0xad | 0xbd | 0xb9 | 0xa1 | 0xb1 => {
                     self.lda(&opcode.mode);
@@ -219,12 +225,6 @@ impl CPU {
 
                 // TYA
                 0x98 => self.tya(),
-
-                // INX
-                0xe8 => self.inx(),
-
-                // BRK
-                0x00 => return,
 
                 _ => todo!(),
             }
