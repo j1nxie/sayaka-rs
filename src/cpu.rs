@@ -183,6 +183,13 @@ impl CPU {
         self.mem_write(pos + 1, hi);
     }
 
+    fn and(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        let value = self.mem_read(addr);
+        self.register_a = value & self.register_a;
+        self.update_zero_and_negative_flags(self.register_a);
+    }
+
     fn clc(&mut self) {
         self.status.remove(CpuFlags::CARRY)
     }
@@ -199,13 +206,41 @@ impl CPU {
         self.status.remove(CpuFlags::OVERFLOW)
     }
 
-    fn inc(&mut self, mode: &AddressingMode) {
+    fn dec(&mut self, mode: &AddressingMode) -> u8 {
+        let addr = self.get_operand_address(mode);
+        let mut value = self.mem_read(addr);
+
+        value = value.wrapping_sub(1);
+        self.mem_write(addr, value);
+        self.update_zero_and_negative_flags(value);
+        value
+    }
+
+    fn dex(&mut self) {
+        self.register_x = self.register_x.wrapping_sub(1);
+        self.update_zero_and_negative_flags(self.register_x);
+    }
+
+    fn dey(&mut self) {
+        self.register_y = self.register_y.wrapping_sub(1);
+        self.update_zero_and_negative_flags(self.register_y);
+    }
+
+    fn eor(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        let value = self.mem_read(addr);
+        self.register_a = value ^ self.register_a;
+        self.update_zero_and_negative_flags(self.register_a);
+    }
+
+    fn inc(&mut self, mode: &AddressingMode) -> u8 {
         let addr = self.get_operand_address(mode);
         let mut value = self.mem_read(addr);
 
         value = value.wrapping_add(1);
         self.mem_write(addr, value);
         self.update_zero_and_negative_flags(value);
+        value
     }
 
     fn inx(&mut self) {
@@ -242,6 +277,14 @@ impl CPU {
         self.update_zero_and_negative_flags(self.register_y);
     }
 
+    fn ora(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        let value = self.mem_read(addr);
+
+        self.register_a = value | self.register_a;
+        self.update_zero_and_negative_flags(self.register_a);
+    }
+
     fn sec(&mut self) {
         self.status.insert(CpuFlags::CARRY)
     }
@@ -257,6 +300,16 @@ impl CPU {
     fn sta(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
         self.mem_write(addr, self.register_a);
+    }
+
+    fn stx(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        self.mem_write(addr, self.register_x);
+    }
+
+    fn sty(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        self.mem_write(addr, self.register_y);
     }
     
     fn tax(&mut self) {
@@ -313,6 +366,11 @@ impl CPU {
                 .expect(&format!("opcode {:x} is not recognized", code));
 
             match code {
+                // AND
+                0x29 | 0x25 | 0x35 | 0x2d | 0x3d | 0x39 | 0x21 | 0x31 => {
+                    self.and(&opcode.mode);
+                },
+
                 // BRK
                 0x00 => return,
 
@@ -328,10 +386,26 @@ impl CPU {
                 // CLV
                 0xb8 => self.clv(),
 
+                // DEC
+                0xc6 | 0xd6 | 0xce | 0xde => {
+                    self.dec(&opcode.mode);
+                },
+
+                // DEX
+                0xca => self.dex(),
+
+                // DEY
+                0x88 => self.dey(),
+                
+                // EOR
+                0x49 | 0x45 | 0x55 | 0x4d | 0x5d | 0x59 | 0x41 | 0x51 => {
+                    self.eor(&opcode.mode);
+                },
+
                 // INC
                 0xe6 | 0xf6 | 0xee | 0xfe => {
                     self.inc(&opcode.mode);
-                }
+                },
 
                 // INX
                 0xe8 => self.inx(),
@@ -359,6 +433,11 @@ impl CPU {
                     // do nothing.
                 },
 
+                // ORA
+                0x09 | 0x05 | 0x15 | 0x0d | 0x1d | 0x19 | 0x01 | 0x11 => {
+                    self.ora(&opcode.mode);
+                }
+
                 // SEC
                 0x38 => self.sec(),
 
@@ -371,7 +450,17 @@ impl CPU {
                 // STA
                 0x85 | 0x95 | 0x8d | 0x9d | 0x99 | 0x81 | 0x91 => {
                     self.sta(&opcode.mode);
-                }
+                },
+
+                // STX
+                0x86 | 0x96 | 0x8e => {
+                    self.stx(&opcode.mode);
+                },
+
+                // STY
+                0x84 | 0x94 | 0x8c => {
+                    self.sty(&opcode.mode);
+                },
 
                 // TAX
                 0xAA => self.tax(),
