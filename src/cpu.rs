@@ -173,6 +173,18 @@ impl CPU {
         self.mem_write_u16(0xFFFC, 0x8000);
     }
 
+    fn compare(&mut self, mode: &AddressingMode, compare_value: u8) {
+        let addr = self.get_operand_address(mode);
+        let value = self.mem_read(addr);
+        if value <= compare_value {
+            self.status.insert(CpuFlags::CARRY);
+        } else {
+            self.status.remove(CpuFlags::CARRY);
+        }
+
+        self.update_zero_and_negative_flags(compare_value.wrapping_sub(value));
+    }
+
     fn mem_read_u16(&mut self, pos: u16) -> u16 {
         let lo = self.mem_read(pos) as u16;
         let hi = self.mem_read(pos + 1) as u16;
@@ -448,6 +460,21 @@ impl CPU {
 
                 // CLV
                 0xb8 => self.clv(),
+
+                // CMP
+                0xc9 | 0xc5 | 0xd5 | 0xcd | 0xdd | 0xd9 | 0xc1 | 0xd1 => {
+                    self.compare(&opcode.mode, self.register_a);
+                }
+
+                // CPX
+                0xe0 | 0xe4 | 0xec => {
+                    self.compare(&opcode.mode, self.register_x);
+                }
+
+                // CPY
+                0xc0 | 0xc4 | 0xcc => {
+                    self.compare(&opcode.mode, self.register_y);
+                }
 
                 // DEC
                 0xc6 | 0xd6 | 0xce | 0xde => {
