@@ -234,6 +234,42 @@ impl CPU {
         }
     }
 
+    fn add_to_register_a(&mut self, value: u8) {
+        let sum = self.register_a as u16
+            + value as u16
+            + (if self.status.contains(CpuFlags::CARRY) {
+                1
+            } else {
+                0
+            }) as u16;
+
+        let carry = sum > 0xff;
+
+        if carry {
+            self.sec();
+        } else {
+            self.clc();
+        }
+
+        let result = sum as u8;
+
+        if (value ^ result) & (result ^ self.register_a) & 0x80 != 0 {
+            self.status.insert(CpuFlags::OVERFLOW);
+        } else {
+            self.status.remove(CpuFlags::OVERFLOW);
+        }
+
+        self.register_a = result;
+        self.update_zero_and_negative_flags(self.register_a);
+
+    }
+
+    fn adc(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        let value = self.mem_read(addr);
+        self.add_to_register_a(value);
+    }
+
     fn and(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
         let value = self.mem_read(addr);
@@ -425,6 +461,84 @@ impl CPU {
         self.status.insert(CpuFlags::BREAK2);
     }
 
+    fn rol_accumulator(&mut self) {
+        let mut value = self.register_a;
+        let old_carry = self.status.contains(CpuFlags::CARRY);
+
+        if value >> 7 == 1 {
+            self.sec();
+        } else {
+            self.clc();
+        }
+        value = value << 1;
+        if old_carry {
+            value = value | 1;
+        }
+        self.register_a = value;
+        self.update_zero_and_negative_flags(value);
+    }
+
+    fn rol(&mut self, mode: &AddressingMode) -> u8 {
+        let addr = self.get_operand_address(mode);
+        let mut value = self.mem_read(addr);
+        let old_carry = self.status.contains(CpuFlags::CARRY);
+
+        if value >> 7 == 1 {
+            self.sec();
+        } else {
+            self.clc();
+        }
+        value = value << 1;
+        if old_carry {
+            value = value | 1;
+        }
+        self.mem_write(addr, value);
+        self.update_zero_and_negative_flags(value);
+        value
+    }
+
+    fn ror_accumulator(&mut self) {
+        let mut value = self.register_a;
+        let old_carry = self.status.contains(CpuFlags::CARRY);
+
+        if value & 1 == 1 {
+            self.sec();
+        } else {
+            self.clc();
+        }
+        value = value >> 1;
+        if old_carry {
+            value = value | 1;
+        }
+        self.register_a = value;
+        self.update_zero_and_negative_flags(self.register_a);
+    }
+
+    fn ror(&mut self, mode: &AddressingMode) -> u8 {
+        let addr = self.get_operand_address(mode);
+        let mut value = self.mem_read(addr);
+        let old_carry = self.status.contains(CpuFlags::CARRY);
+
+        if value & 1 == 1 {
+            self.sec();
+        } else {
+            self.clc();
+        }
+        value = value >> 1;
+        if old_carry {
+            value = value | 1;
+        }
+        self.mem_write(addr, value);
+        self.update_zero_and_negative_flags(value);
+        value
+    }
+
+    fn sbc(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        let value = self.mem_read(addr);
+        self.add_to_register_a(((value as i8).wrapping_neg().wrapping_sub(1)) as u8);
+    }
+
     fn sec(&mut self) {
         self.status.insert(CpuFlags::CARRY)
     }
@@ -506,6 +620,11 @@ impl CPU {
                 .expect(&format!("opcode {:x} is not recognized", code));
 
             match code {
+                // ADC
+                0x69 | 0x65 | 0x75 | 0x6d | 0x7d | 0x79 | 0x61 | 0x71 => {
+                    self.adc(&opcode.mode);
+                },
+
                 // AND
                 0x29 | 0x25 | 0x35 | 0x2d | 0x3d | 0x39 | 0x21 | 0x31 => {
                     self.and(&opcode.mode);
@@ -605,6 +724,33 @@ impl CPU {
                 // INY
                 0xc8 => self.iny(),
 
+                // JMP absolute
+                0x4c => {
+                    let mem_addr = self.mem_read_u16(self.program_counter);
+                    self.program_counter = mem_addr;
+                },
+
+                // JMP indirect
+                0x6c => {
+                    let mem_addr = self.mem_read_u16(self.program_counter);
+                    let indirect_ref = if mem_addr & 0x00FF == 0x00FF {
+                        let lo = self.mem_read(mem_addr);
+                        let hi = self.mem_read(mem_addr & 0xFF00);
+                        (hi as u16) << 8 | (lo as u16)
+                    } else {
+                        self.mem_read_u16(mem_addr)
+                    };
+
+                    self.program_counter = indirect_ref;
+                },
+
+                // JSR
+                0x20 => {
+                    self.stack_push_u16(self.program_counter + 2 - 1);
+                    let target_addr = self.mem_read_u16(self.program_counter);
+                    self.program_counter = target_addr;
+                },
+
                 // LDA
                 0xa9 | 0xa5 | 0xb5 | 0xad | 0xbd | 0xb9 | 0xa1 | 0xb1 => {
                     self.lda(&opcode.mode);
@@ -649,6 +795,39 @@ impl CPU {
 
                 // PLP
                 0x28 => self.plp(),
+
+                // ROL with Accumulator
+                0x2a => self.rol_accumulator(),
+
+                // ROL with Memory
+                0x26 | 0x36 | 0x2e | 0x3e => {
+                    self.rol(&opcode.mode);
+                },
+
+                // ROR with Accumulator
+                0x6a => self.ror_accumulator(),
+
+                // ROR with Memory
+                0x66 | 0x76 | 0x6e | 0x7e => {
+                    self.ror(&opcode.mode);
+                },
+
+                // RTI
+                0x40 => {
+                    self.status.bits = self.stack_pop();
+                    self.status.remove(CpuFlags::BREAK);
+                    self.status.insert(CpuFlags::BREAK2);
+
+                    self.program_counter = self.stack_pop_u16();
+                },
+
+                // RTS 
+                0x60 => self.program_counter = self.stack_pop_u16() + 1,
+
+                // SBC
+                0xe9 | 0xe5 | 0xf5 | 0xed | 0xfd | 0xf9 | 0xe1 | 0xf1 => {
+                    self.sbc(&opcode.mode);
+                },
 
                 // SEC
                 0x38 => self.sec(),
