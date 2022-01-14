@@ -25,6 +25,9 @@ bitflags! {
     }
 }
 
+const STACK: u16 = 0x0100;
+const STACK_RESET: u8 = 0xfd;
+
 #[derive(Debug)]
 #[allow(non_camel_case_types)]
 pub enum AddressingMode {
@@ -86,7 +89,7 @@ impl CPU {
             register_x: 0,
             register_y: 0,
             status: CpuFlags::from_bits_truncate(0b100100),
-            stack_ptr: 0,
+            stack_ptr: STACK_RESET,
             program_counter: 0,
             memory: [0; 0xFFFF],
         }
@@ -154,7 +157,7 @@ impl CPU {
         self.register_x = 0;
         self.register_y = 0;
         self.status = CpuFlags::from_bits_truncate(0b100100);
-        self.stack_ptr = 0;
+        self.stack_ptr = STACK_RESET;
 
         self.program_counter = self.mem_read_u16(0xFFFC);
     }
@@ -181,6 +184,30 @@ impl CPU {
         let lo = (value & 0xff) as u8;
         self.mem_write(pos, lo);
         self.mem_write(pos + 1, hi);
+    }
+
+    fn stack_pop(&mut self) -> u8 {
+        self.stack_ptr = self.stack_ptr.wrapping_add(1);
+        self.mem_read((STACK as u16) + self.stack_ptr as u16)
+    }
+
+    fn stack_push(&mut self, value: u8) {
+        self.mem_write((STACK as u16) + self.stack_ptr as u16, value);
+        self.stack_ptr = self.stack_ptr.wrapping_sub(1)
+    }
+
+    fn stack_pop_u16(&mut self) -> u16 {
+        let lo = self.stack_pop() as u16;
+        let hi = self.stack_pop() as u16;
+
+        hi << 8 | lo
+    }
+
+    fn stack_push_u16(&mut self, data: u16) {
+        let hi = (data >> 8) as u8;
+        let lo = (data & 0xff) as u8;
+        self.stack_push(hi);
+        self.stack_push(lo);
     }
 
     fn and(&mut self, mode: &AddressingMode) {
