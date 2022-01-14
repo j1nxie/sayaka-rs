@@ -222,11 +222,37 @@ impl CPU {
         self.stack_push(lo);
     }
 
+    fn branch(&mut self, condition: bool) {
+        if condition {
+            let jump: i8 = self.mem_read(self.program_counter) as i8;
+            let jump_addr = self
+                .program_counter
+                .wrapping_add(1)
+                .wrapping_add(jump as u16);
+
+            self.program_counter = jump_addr;
+        }
+    }
+
     fn and(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
         let value = self.mem_read(addr);
         self.register_a = value & self.register_a;
         self.update_zero_and_negative_flags(self.register_a);
+    }
+    
+    fn bit(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        let value = self.mem_read(addr);
+        let and = self.register_a & value;
+        if and == 0 {
+            self.status.insert(CpuFlags::ZERO);
+        } else {
+            self.status.remove(CpuFlags::ZERO);
+        }
+
+        self.status.set(CpuFlags::NEGATIVE, value & 0b1000000 > 0);
+        self.status.set(CpuFlags::OVERFLOW, value & 0b1000000 > 0);
     }
 
     fn clc(&mut self) {
@@ -446,8 +472,37 @@ impl CPU {
                     self.and(&opcode.mode);
                 },
 
+                // BCC
+                0x90 => self.branch(!self.status.contains(CpuFlags::CARRY)),
+
+                // BCS
+                0xb0 => self.branch(self.status.contains(CpuFlags::CARRY)),
+
+                // BEQ
+                0xf0 => self.branch(self.status.contains(CpuFlags::ZERO)),
+
+                // BIT
+                0x24 | 0x2c => {
+                    self.bit(&opcode.mode);
+                },
+
+                // BMI
+                0x30 => self.branch(self.status.contains(CpuFlags::NEGATIVE)),
+
+                // BNE
+                0xd0 => self.branch(!self.status.contains(CpuFlags::ZERO)),
+
+                // BPL
+                0x10 => self.branch(!self.status.contains(CpuFlags::ZERO)),
+
                 // BRK
                 0x00 => return,
+
+                // BVC
+                0x50 => self.branch(!self.status.contains(CpuFlags::OVERFLOW)),
+
+                // BVS
+                0x70 => self.branch(self.status.contains(CpuFlags::OVERFLOW)),
 
                 // CLC
                 0x18 => self.clc(),
