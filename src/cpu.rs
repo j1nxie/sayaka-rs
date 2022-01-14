@@ -325,6 +325,29 @@ impl CPU {
         self.update_zero_and_negative_flags(self.register_a);
     }
 
+    fn pha(&mut self) {
+        self.stack_push(self.register_a);
+    }
+
+    fn php(&mut self) {
+        let mut flags = self.status.clone();
+        flags.insert(CpuFlags::BREAK);
+        flags.insert(CpuFlags::BREAK2);
+        self.stack_push(flags.bits());
+    }
+
+    fn pla(&mut self) {
+        let value = self.stack_pop();
+        self.register_a = value;
+        self.update_zero_and_negative_flags(self.register_a);
+    }
+
+    fn plp(&mut self) {
+        self.status.bits = self.stack_pop();
+        self.status.remove(CpuFlags::BREAK);
+        self.status.insert(CpuFlags::BREAK2);
+    }
+
     fn sec(&mut self) {
         self.status.insert(CpuFlags::CARRY)
     }
@@ -481,7 +504,19 @@ impl CPU {
                 // ORA
                 0x09 | 0x05 | 0x15 | 0x0d | 0x1d | 0x19 | 0x01 | 0x11 => {
                     self.ora(&opcode.mode);
-                }
+                },
+
+                // PHA
+                0x48 => self.pha(),
+
+                // PHP
+                0x08 => self.php(),
+
+                // PLA
+                0x68 => self.pla(),
+
+                // PLP
+                0x28 => self.plp(),
 
                 // SEC
                 0x38 => self.sec(),
