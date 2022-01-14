@@ -240,6 +240,32 @@ impl CPU {
         self.register_a = value & self.register_a;
         self.update_zero_and_negative_flags(self.register_a);
     }
+
+    fn asl_accumulator(&mut self) {
+        let mut value = self.register_a;
+        if value >> 7 == 1 {
+            self.sec();
+        } else {
+            self.clc();
+        }
+        value = value << 1;
+        self.register_a = value;
+        self.update_zero_and_negative_flags(self.register_a);
+    }
+
+    fn asl(&mut self, mode: &AddressingMode) -> u8 {
+        let addr = self.get_operand_address(mode);
+        let mut value = self.mem_read(addr);
+        if value >> 7 == 1 {
+            self.sec();
+        } else {
+            self.clc();
+        }
+        value = value << 1;
+        self.mem_write(addr, value);
+        self.update_zero_and_negative_flags(value);
+        value
+    }
     
     fn bit(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
@@ -342,7 +368,19 @@ impl CPU {
         self.update_zero_and_negative_flags(self.register_y);
     }
 
-    fn lsr(&mut self, mode: &AddressingMode) {
+    fn lsr_accumulator(&mut self) {
+        let mut value = self.register_a;
+        if value & 1 == 1 {
+            self.sec();
+        } else {
+            self.clc();
+        }
+        value = value >> 1;
+        self.register_a = value;
+        self.update_zero_and_negative_flags(self.register_a);
+    }
+
+    fn lsr(&mut self, mode: &AddressingMode) -> u8 {
         let addr = self.get_operand_address(mode);
         let mut value = self.mem_read(addr);
         if value & 1 == 1 {
@@ -353,6 +391,7 @@ impl CPU {
         value = value >> 1;
         self.mem_write(addr, value);
         self.update_zero_and_negative_flags(value);
+        value
     }
 
     fn ora(&mut self, mode: &AddressingMode) {
@@ -472,6 +511,14 @@ impl CPU {
                     self.and(&opcode.mode);
                 },
 
+                // ASL with Accumulator
+                0x0a => self.asl_accumulator(),
+
+                // ASL with Memory
+                0x06 | 0x16 | 0x0e | 0x1e => {
+                    self.asl(&opcode.mode);
+                },
+
                 // BCC
                 0x90 => self.branch(!self.status.contains(CpuFlags::CARRY)),
 
@@ -573,8 +620,11 @@ impl CPU {
                     self.ldy(&opcode.mode);
                 }
 
-                // LSR
-                0x4a | 0x46 | 0x56 | 0x4e | 0x5e => {
+                // LSR with Accumulator
+                0x4a => self.lsr_accumulator(),
+
+                // LSR with Memory
+                0x46 | 0x56 | 0x4e | 0x5e => {
                     self.lsr(&opcode.mode);
                 }
                 
