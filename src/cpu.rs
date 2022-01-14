@@ -277,6 +277,19 @@ impl CPU {
         self.update_zero_and_negative_flags(self.register_y);
     }
 
+    fn lsr(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        let mut value = self.mem_read(addr);
+        if value & 1 == 1 {
+            self.sec();
+        } else {
+            self.clc();
+        }
+        value = value >> 1;
+        self.mem_write(addr, value);
+        self.update_zero_and_negative_flags(value);
+    }
+
     fn ora(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
         let value = self.mem_read(addr);
@@ -426,6 +439,11 @@ impl CPU {
                 // LDY
                 0xa0 | 0xa4 | 0xb4 | 0xac | 0xbc => {
                     self.ldy(&opcode.mode);
+                }
+
+                // LSR
+                0x4a | 0x46 | 0x56 | 0x4e | 0x5e => {
+                    self.lsr(&opcode.mode);
                 }
                 
                 // NOP
