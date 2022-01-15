@@ -53,17 +53,27 @@ pub struct CPU {
     memory: [u8; 0xFFFF]
 }
 
-trait Mem {
+pub trait Mem {
     fn mem_read(&self, addr: u16) -> u8;
 
     fn mem_write(&mut self, addr: u16, value: u8);
 
+    /// # Reading from memory as a 16-bit value
+    ///
+    /// Reads the low byte in memory as a 16-bit value, then reads the high byte in the next
+    /// position as a 16-bit value.
+    /// Shifts the high byte by 8 bits to the left then returns high OR low.
     fn mem_read_u16(&self, pos: u16) -> u16 {
         let lo = self.mem_read(pos) as u16;
         let hi = self.mem_read(pos + 1) as u16;
         (hi << 8) | (lo as u16)
     }
 
+    /// # Writing to memory as a 16-bit value
+    ///
+    /// The high byte is read by shifting the value 8 bits to the right, then the low byte is taken
+    /// by performing an AND on the value.
+    /// The value is then written into memory in the order of low to high.
     fn mem_write_u16(&mut self, pos: u16, value: u16) {
         let hi = (value >> 8) as u8;
         let lo = (value & 0xff) as u8;
@@ -73,16 +83,31 @@ trait Mem {
 }
 
 impl Mem for CPU {
+    /// # Reading from memory
+    ///
+    /// Memory address is read as a 16-bit value, then returned as an 8-bit value directly from
+    /// memory (no bus)
     fn mem_read(&self, addr: u16) -> u8 {
         self.memory[addr as usize]
     }
 
+    /// # Writing to memory
+    ///
+    /// Memory address is read as a 16-bit value, with the written value being an 8-bit value. This
+    /// value is written directly to the memory address (no bus)
     fn mem_write(&mut self, addr: u16, value: u8) {
         self.memory[addr as usize] = value;
     }
 }
 
 impl CPU {
+    /// # Creating a new CPU instance
+    ///
+    /// Initializes a new 6502 CPU instance, with:
+    /// - All registers set to 0
+    /// - Stack pointer set to 0xFD
+    /// - Program counter set to 0
+    /// - Memory directly initialized as an array from 0 to 0xFFFF
     pub fn new() -> Self {
         CPU {
             register_a: 0,
@@ -152,6 +177,12 @@ impl CPU {
         }
     }
 
+    /// # Resetting the 6502 CPU instance
+    ///
+    /// Resets the given 6502 CPU instance, with:
+    /// - All registers set to 0
+    /// - Stack pointer set to 0xFD
+    /// - Program counter set to 0xFFFC
     pub fn reset(&mut self) {
         self.register_a = 0;
         self.register_x = 0;
